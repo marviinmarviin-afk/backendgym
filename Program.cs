@@ -1,0 +1,119 @@
+using GimnasioApi.Hubs;
+using GimnasioApi.Models;
+using Microsoft.EntityFrameworkCore;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Configuración de puerto para despliegue en Render (Render inyecta la variable de entorno PORT)
+var port = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrEmpty(port))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+}
+
+// 1. Resolver la cadena de conexión DefaultConnection (desde appsettings o variables de entorno)
+string connectionString = ResolveConnectionString(builder.Configuration);
+
+// 2. Registrar DbContext con PostgreSQL (Npgsql)
+if (!string.IsNullOrWhiteSpace(connectionString))
+{
+    builder.Services.AddDbContext<GimnasioContext>(options =>
+        options.UseNpgsql(connectionString));
+}
+else
+{
+    // Registro diferido por si la variable aún no fue provista durante build
+    builder.Services.AddDbContext<GimnasioContext>(options => { });
+}
+
+// 3. Registrar Controladores
+builder.Services.AddControllers();
+
+// 4. Registrar SignalR
+builder.Services.AddSignalR();
+
+// 5. Configurar CORS permitiendo cualquier origen, método y encabezado con credenciales habilitadas
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.SetIsOriginAllowed(_ => true) // Necesario para permitir cualquier origen con AllowCredentials()
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials();
+    });
+});
+
+// 6. Configurar Swagger / OpenAPI para documentación y pruebas
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+var app = builder.Build();
+
+// Configurar Swagger en desarrollo y producción para pruebas fáciles en Render
+app.UseSwagger();
+app.UseSwaggerUI(c =>
+{
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Gimnasio API v1");
+    c.RoutePrefix = "swagger";
+});
+
+// Middleware CORS (debe ir antes de MapControllers y MapHub)
+app.UseCors("AllowAll");
+
+app.UseRouting();
+
+app.UseAuthorization();
+
+// Mapeo de Controladores y Hub de SignalR
+app.MapControllers();
+app.MapHub<GimnasioHub>("/ws/gimnasio");
+
+// Endpoint raíz de bienvenida y estado
+app.MapGet("/", () => Results.Ok(new
+{
+    mensaje = "API de Gestión de Gimnasio activa",
+    signalr = "/ws/gimnasio",
+    swagger = "/swagger",
+    databaseConfigurada = !string.IsNullOrWhiteSpace(connectionString)
+}));
+
+app.Run();
+
+// Función auxiliar para leer y normalizar cadenas de conexión (compatible con Render y Supabase)
+static string ResolveConnectionString(IConfiguration configuration)
+{
+    var rawConnection = configuration.GetConnectionString("DefaultConnection")
+                        ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+                        ?? Environment.GetEnvironmentVariable("DefaultConnection")
+                        ?? Environment.GetEnvironmentVariable("DATABASE_URL")
+                        ?? configuration["DefaultConnection"];
+
+    if (string.IsNullOrWhiteSpace(rawConnection))
+    {
+        return string.Empty;
+    }
+
+    // Si viene en formato URL (postgres://user:password@host:port/database) común en Render/Supabase
+    if (rawConnection.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
+        rawConnection.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+    {
+        try
+        {
+            var uri = new Uri(rawConnection);
+            var userInfo = uri.UserInfo.Split(':');
+            var user = userInfo.Length > 0 ? Uri.UnescapeDataString(userInfo[0]) : "";
+            var pass = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
+            var db = uri.AbsolutePath.TrimStart('/');
+            var hostPort = uri.Port > 0 ? uri.Port : 5432;
+
+            return $"Host={uri.Host};Port={hostPort};Database={db};Username={user};Password={pass};SSL Mode=Require;Trust Server Certificate=true;";
+        }
+        catch
+        {
+            return rawConnection;
+        }
+    }
+
+    return rawConnection;
+}

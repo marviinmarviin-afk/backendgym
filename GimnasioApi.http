@@ -1,0 +1,27 @@
+@GimnasioApi_HostAddress = http://localhost:5000
+
+### 1. Estado y Bienvenida
+GET {{GimnasioApi_HostAddress}}/
+Accept: application/json
+
+### 2. Inscribir nuevo miembro
+POST {{GimnasioApi_HostAddress}}/api/miembros/inscribir
+Content-Type: application/json
+
+{
+  "dpi": "1234567890101",
+  "nombreCompleto": "Juan Perez",
+  "telefono": "+502 5555-1234"
+}
+
+### 3. Cancelar membresía por Id
+PUT {{GimnasioApi_HostAddress}}/api/miembros/cancelar/1
+Content-Type: application/json
+
+### 4. Consultar todos los miembros
+GET {{GimnasioApi_HostAddress}}/api/miembros
+Accept: application/json
+
+### 5. Consultar miembros activos (Vista)
+GET {{GimnasioApi_HostAddress}}/api/miembros/activos
+Accept: application/json
