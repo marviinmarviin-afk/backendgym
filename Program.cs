@@ -111,6 +111,8 @@ static string ResolveConnectionString(IConfiguration configuration)
         return string.Empty;
     }
 
+    rawConnection = rawConnection.Trim();
+
     // Si viene en formato URL (postgres://user:password@host:port/database) común en Render/Supabase
     if (rawConnection.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
         rawConnection.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
@@ -128,9 +130,22 @@ static string ResolveConnectionString(IConfiguration configuration)
         }
         catch
         {
-            return rawConnection;
+            // Continuar con normalización estándar si falla el parseo de URI
         }
     }
+
+    // Normalizar palabras clave no soportadas por Npgsql (como Server= o User Id=)
+    rawConnection = System.Text.RegularExpressions.Regex.Replace(
+        rawConnection,
+        @"(^|;)\s*Server\s*=",
+        "$1Host=",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    rawConnection = System.Text.RegularExpressions.Regex.Replace(
+        rawConnection,
+        @"(^|;)\s*User\s+Id\s*=",
+        "$1Username=",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     return rawConnection;
 }
