@@ -50,6 +50,9 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
+// Mostrar errores detallados para diagnosticar problemas de conexión
+app.UseDeveloperExceptionPage();
+
 // Configurar Swagger en desarrollo y producción para pruebas fáciles en Render
 app.UseSwagger();
 app.UseSwaggerUI(c =>
@@ -58,16 +61,30 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
-// Middleware CORS (debe ir antes de MapControllers y MapHub)
-app.UseCors("PermitirFrontend");
-
 app.UseRouting();
+
+// Middleware CORS (debe ir después de UseRouting y antes de UseAuthorization/MapControllers)
+app.UseCors("PermitirFrontend");
 
 app.UseAuthorization();
 
 // Mapeo de Controladores y Hub de SignalR
 app.MapControllers();
 app.MapHub<GimnasioHub>("/ws/gimnasio");
+
+// Endpoint de diagnóstico de base de datos
+app.MapGet("/api/health-db", async (GimnasioContext db) =>
+{
+    try
+    {
+        var canConnect = await db.Database.CanConnectAsync();
+        return Results.Ok(new { conectado = canConnect, mensaje = "Conexión a la base de datos exitosa" });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { conectado = false, error = ex.Message, detalle = ex.ToString() }, statusCode: 500);
+    }
+});
 
 // Endpoint raíz de bienvenida y estado
 app.MapGet("/", () => Results.Ok(new
