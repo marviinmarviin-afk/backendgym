@@ -89,13 +89,22 @@ app.MapGet("/api/health-db", async (GimnasioContext db) =>
 // Endpoint raíz de bienvenida y estado
 app.MapGet("/", () => Results.Ok(new
 {
+    version = "1.0.3",
     mensaje = "API de Gestión de Gimnasio activa",
     signalr = "/ws/gimnasio",
     swagger = "/swagger",
-    databaseConfigurada = !string.IsNullOrWhiteSpace(connectionString)
+    databaseConfigurada = !string.IsNullOrWhiteSpace(connectionString),
+    connectionInfo = MaskConnectionString(connectionString)
 }));
 
 app.Run();
+
+// Enmascarar contraseña para diagnóstico seguro
+static string MaskConnectionString(string cs)
+{
+    if (string.IsNullOrWhiteSpace(cs)) return "No configurada";
+    return System.Text.RegularExpressions.Regex.Replace(cs, @"Password=[^;]+", "Password=***", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+}
 
 // Función auxiliar para leer y normalizar cadenas de conexión (compatible con Render y Supabase)
 static string ResolveConnectionString(IConfiguration configuration)
