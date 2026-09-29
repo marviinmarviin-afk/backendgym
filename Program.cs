@@ -32,15 +32,15 @@ builder.Services.AddControllers();
 // 4. Registrar SignalR
 builder.Services.AddSignalR();
 
-// 5. Configurar CORS permitiendo cualquier origen, método y encabezado con credenciales habilitadas
+// 5. Configurar CORS permitiendo frontend local y en Vercel con credenciales habilitadas
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    options.AddPolicy("PermitirFrontend", policy =>
     {
-        policy.SetIsOriginAllowed(_ => true) // Necesario para permitir cualquier origen con AllowCredentials()
-              .AllowAnyMethod()
+        policy.WithOrigins("http://localhost:5173", "https://frontgym-liart.vercel.app") 
               .AllowAnyHeader()
-              .AllowCredentials();
+              .AllowAnyMethod()
+              .AllowCredentials(); // Esto es vital para que no se caiga el WebSocket
     });
 });
 
@@ -59,7 +59,7 @@ app.UseSwaggerUI(c =>
 });
 
 // Middleware CORS (debe ir antes de MapControllers y MapHub)
-app.UseCors("AllowAll");
+app.UseCors("PermitirFrontend");
 
 app.UseRouting();
 
