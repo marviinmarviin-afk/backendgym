@@ -1,6 +1,8 @@
+using System.Text.RegularExpressions;
 using GimnasioApi.Hubs;
 using GimnasioApi.Models;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,11 +16,31 @@ if (!string.IsNullOrEmpty(port))
 // 1. Resolver la cadena de conexión DefaultConnection (desde appsettings o variables de entorno)
 string connectionString = ResolveConnectionString(builder.Configuration);
 
-// 2. Registrar DbContext con PostgreSQL (Npgsql)
+// 1.1 Validar el formato de la cadena al iniciar para detectar errores de configuración temprano
+string? connectionError = null;
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    connectionError = "No hay cadena de conexión configurada (ConnectionStrings__DefaultConnection).";
+    Console.Error.WriteLine($"[DB] {connectionError}");
+}
+else
+{
+    try
+    {
+        _ = new NpgsqlConnectionStringBuilder(connectionString);
+    }
+    catch (Exception ex)
+    {
+        connectionError = $"Cadena de conexión inválida: {ex.Message}";
+        Console.Error.WriteLine($"[DB] {connectionError}");
+    }
+}
+
+// 2. Registrar DbContext con PostgreSQL (Npgsql), con reintentos ante fallos transitorios de red
 if (!string.IsNullOrWhiteSpace(connectionString))
 {
     builder.Services.AddDbContext<GimnasioContext>(options =>
-        options.UseNpgsql(connectionString));
+        options.UseNpgsql(connectionString, npgsql => npgsql.EnableRetryOnFailure(3)));
 }
 else
 {
@@ -37,7 +59,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("PermitirFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "https://frontgym-liart.vercel.app") 
+        policy.WithOrigins("http://localhost:5173", "https://frontgym-liart.vercel.app")
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials(); // Esto es vital para que no se caiga el WebSocket
@@ -50,8 +72,19 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// Mostrar errores detallados para diagnosticar problemas de conexión
-app.UseDeveloperExceptionPage();
+// Errores detallados solo en desarrollo; en producción se devuelve un mensaje genérico
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+}
+else
+{
+    app.UseExceptionHandler(errorApp => errorApp.Run(async context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        await context.Response.WriteAsJsonAsync(new { mensaje = "Ocurrió un error interno en el servidor." });
+    }));
+}
 
 // Configurar Swagger en desarrollo y producción para pruebas fáciles en Render
 app.UseSwagger();
@@ -72,39 +105,38 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<GimnasioHub>("/ws/gimnasio");
 
-// Endpoint de diagnóstico de base de datos
+// Endpoint de diagnóstico de base de datos (no expone datos sensibles)
 app.MapGet("/api/health-db", async (GimnasioContext db) =>
 {
+    if (connectionError != null)
+    {
+        return Results.Json(new { conectado = false, error = connectionError }, statusCode: 500);
+    }
+
     try
     {
         var canConnect = await db.Database.CanConnectAsync();
-        return Results.Ok(new { conectado = canConnect, mensaje = "Conexión a la base de datos exitosa" });
+        return Results.Ok(new { conectado = canConnect, mensaje = canConnect
+            ? "Conexión a la base de datos exitosa"
+            : "No se pudo conectar a la base de datos" });
     }
     catch (Exception ex)
     {
-        return Results.Json(new { conectado = false, error = ex.Message, detalle = ex.ToString() }, statusCode: 500);
+        return Results.Json(new { conectado = false, error = ex.GetBaseException().Message }, statusCode: 500);
     }
 });
 
 // Endpoint raíz de bienvenida y estado
 app.MapGet("/", () => Results.Ok(new
 {
-    version = "1.0.3",
+    version = "1.0.4",
     mensaje = "API de Gestión de Gimnasio activa",
     signalr = "/ws/gimnasio",
     swagger = "/swagger",
-    databaseConfigurada = !string.IsNullOrWhiteSpace(connectionString),
-    connectionInfo = MaskConnectionString(connectionString)
+    databaseConfigurada = connectionError == null
 }));
 
 app.Run();
-
-// Enmascarar contraseña para diagnóstico seguro
-static string MaskConnectionString(string cs)
-{
-    if (string.IsNullOrWhiteSpace(cs)) return "No configurada";
-    return System.Text.RegularExpressions.Regex.Replace(cs, @"Password=[^;]+", "Password=***", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-}
 
 // Función auxiliar para leer y normalizar cadenas de conexión (compatible con Render y Supabase)
 static string ResolveConnectionString(IConfiguration configuration)
@@ -120,7 +152,11 @@ static string ResolveConnectionString(IConfiguration configuration)
         return string.Empty;
     }
 
-    rawConnection = rawConnection.Trim();
+    // Quitar comillas y el prefijo accidental "Value:" (pegado desde otros paneles), y unir saltos de línea
+    rawConnection = rawConnection.Trim().Trim('"', '\'').Trim();
+    rawConnection = Regex.Replace(rawConnection, @"^\s*value\s*:\s*", "", RegexOptions.IgnoreCase);
+    rawConnection = Regex.Replace(rawConnection, @"\s*[\r\n]+\s*", "");
+    rawConnection = rawConnection.Trim().Trim('"', '\'').Trim();
 
     // Si viene en formato URL (postgres://user:password@host:port/database) común en Render/Supabase
     if (rawConnection.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
@@ -129,7 +165,7 @@ static string ResolveConnectionString(IConfiguration configuration)
         try
         {
             var uri = new Uri(rawConnection);
-            var userInfo = uri.UserInfo.Split(':');
+            var userInfo = uri.UserInfo.Split(':', 2); // 2: la contraseña puede contener ':'
             var user = userInfo.Length > 0 ? Uri.UnescapeDataString(userInfo[0]) : "";
             var pass = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
             var db = uri.AbsolutePath.TrimStart('/');
@@ -144,17 +180,8 @@ static string ResolveConnectionString(IConfiguration configuration)
     }
 
     // Normalizar palabras clave no soportadas por Npgsql (como Server= o User Id=)
-    rawConnection = System.Text.RegularExpressions.Regex.Replace(
-        rawConnection,
-        @"(^|;)\s*Server\s*=",
-        "$1Host=",
-        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-
-    rawConnection = System.Text.RegularExpressions.Regex.Replace(
-        rawConnection,
-        @"(^|;)\s*User\s+Id\s*=",
-        "$1Username=",
-        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    rawConnection = Regex.Replace(rawConnection, @"(^|;)\s*Server\s*=", "$1Host=", RegexOptions.IgnoreCase);
+    rawConnection = Regex.Replace(rawConnection, @"(^|;)\s*User\s+Id\s*=", "$1Username=", RegexOptions.IgnoreCase);
 
     return rawConnection;
 }

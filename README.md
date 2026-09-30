@@ -49,7 +49,7 @@ Edita `appsettings.json` con tus credenciales de Supabase:
 
 ### En Render
 Puedes configurar cualquiera de las siguientes variables de entorno en el Dashboard de Render:
-- `DefaultConnection`: Misma cadena ADO.NET descrita arriba.
+- `ConnectionStrings__DefaultConnection` (recomendada): cadena ADO.NET descrita arriba, en una sola línea y **sin prefijos** como `Value:`.
 - `DATABASE_URL`: URI de conexión directa de Supabase (`postgres://postgres:password@host:port/postgres`), la cual es convertida y normalizada automáticamente por el backend.
 
 ---
