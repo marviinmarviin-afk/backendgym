@@ -126,6 +126,26 @@ app.MapGet("/api/health-db", async (GimnasioContext db) =>
     }
 });
 
+// Endpoint temporal para diagnóstico detallado
+app.MapGet("/api/health-db-detail", async (GimnasioContext db, IConfiguration config) =>
+{
+    try
+    {
+        await db.Database.OpenConnectionAsync();
+        return Results.Ok(new { conectado = true });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { 
+            conectado = false, 
+            error = ex.Message, 
+            detalle = ex.ToString(),
+            // No retornar la contraseña!
+            cs = Regex.Replace(db.Database.GetConnectionString() ?? "", @"Password=[^;]+", "Password=***")
+        }, statusCode: 500);
+    }
+});
+
 // Endpoint raíz de bienvenida y estado
 app.MapGet("/", () => Results.Ok(new
 {
