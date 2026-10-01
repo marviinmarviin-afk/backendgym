@@ -59,10 +59,14 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("PermitirFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "https://frontgym-liart.vercel.app")
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials(); // Esto es vital para que no se caiga el WebSocket
+        policy.WithOrigins(
+            "http://localhost:5173", 
+            "https://frontgym-liart.vercel.app", 
+            "https://parqueovehiculos.vercel.app"
+        ) 
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials();
     });
 });
 
