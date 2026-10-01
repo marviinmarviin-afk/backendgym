@@ -1,27 +1,29 @@
-@GimnasioApi_HostAddress = http://localhost:5000
+@ParqueoApi_HostAddress = http://localhost:5000
 
 ### 1. Estado y Bienvenida
-GET {{GimnasioApi_HostAddress}}/
+GET {{ParqueoApi_HostAddress}}/
 Accept: application/json
 
-### 2. Inscribir nuevo miembro
-POST {{GimnasioApi_HostAddress}}/api/miembros/inscribir
+### 2. Registrar entrada de vehículo
+POST {{ParqueoApi_HostAddress}}/api/vehiculos/entrada
 Content-Type: application/json
 
 {
-  "dpi": "1234567890101",
-  "nombreCompleto": "Juan Perez",
-  "telefono": "+502 5555-1234"
+  "placa": "P-123ABC"
 }
 
-### 3. Cancelar membresía por Id
-PUT {{GimnasioApi_HostAddress}}/api/miembros/cancelar/1
+### 3. Registrar salida de vehículo por Id
+PUT {{ParqueoApi_HostAddress}}/api/vehiculos/salida/1
 Content-Type: application/json
 
-### 4. Consultar todos los miembros
-GET {{GimnasioApi_HostAddress}}/api/miembros
+### 4. Consultar todos los registros de vehículos
+GET {{ParqueoApi_HostAddress}}/api/vehiculos
 Accept: application/json
 
-### 5. Consultar miembros activos (Vista)
-GET {{GimnasioApi_HostAddress}}/api/miembros/activos
+### 5. Consultar vehículos activos (Vista)
+GET {{ParqueoApi_HostAddress}}/api/vehiculos/activos
+Accept: application/json
+
+### 6. Consultar historial de ocupación
+GET {{ParqueoApi_HostAddress}}/api/vehiculos/historial
 Accept: application/json

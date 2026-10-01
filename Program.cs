@@ -39,13 +39,13 @@ else
 // 2. Registrar DbContext con PostgreSQL (Npgsql), con reintentos ante fallos transitorios de red
 if (!string.IsNullOrWhiteSpace(connectionString))
 {
-    builder.Services.AddDbContext<GimnasioContext>(options =>
+    builder.Services.AddDbContext<ParqueoContext>(options =>
         options.UseNpgsql(connectionString, npgsql => npgsql.EnableRetryOnFailure(3)));
 }
 else
 {
     // Registro diferido por si la variable aún no fue provista durante build
-    builder.Services.AddDbContext<GimnasioContext>(options => { });
+    builder.Services.AddDbContext<ParqueoContext>(options => { });
 }
 
 // 3. Registrar Controladores
@@ -90,7 +90,7 @@ else
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Gimnasio API v1");
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Parqueo API v1");
     c.RoutePrefix = "swagger";
 });
 
@@ -103,10 +103,10 @@ app.UseAuthorization();
 
 // Mapeo de Controladores y Hub de SignalR
 app.MapControllers();
-app.MapHub<GimnasioHub>("/ws/gimnasio");
+app.MapHub<ParqueoHub>("/ws/parqueo");
 
 // Endpoint de diagnóstico de base de datos (no expone datos sensibles)
-app.MapGet("/api/health-db", async (GimnasioContext db) =>
+app.MapGet("/api/health-db", async (ParqueoContext db) =>
 {
     if (connectionError != null)
     {
@@ -127,7 +127,7 @@ app.MapGet("/api/health-db", async (GimnasioContext db) =>
 });
 
 // Endpoint temporal para diagnóstico detallado
-app.MapGet("/api/health-db-detail", async (GimnasioContext db, IConfiguration config) =>
+app.MapGet("/api/health-db-detail", async (ParqueoContext db, IConfiguration config) =>
 {
     try
     {
@@ -149,9 +149,9 @@ app.MapGet("/api/health-db-detail", async (GimnasioContext db, IConfiguration co
 // Endpoint raíz de bienvenida y estado
 app.MapGet("/", () => Results.Ok(new
 {
-    version = "1.0.4",
-    mensaje = "API de Gestión de Gimnasio activa",
-    signalr = "/ws/gimnasio",
+    version = "1.0.5",
+    mensaje = "API de Control de Parqueo activa",
+    signalr = "/ws/parqueo",
     swagger = "/swagger",
     databaseConfigurada = connectionError == null
 }));

@@ -1,6 +1,6 @@
-# Gimnasio API - Backend .NET 8 (Web API + EF Core + SignalR)
+# Parqueo API - Backend .NET 8 (Web API + EF Core + SignalR)
 
-Backend en .NET 8 para la gestión de inscripciones de gimnasio con PostgreSQL (Supabase) y actualizaciones en tiempo real mediante SignalR (WebSockets).
+Backend en .NET 8 para el control de parqueo vehicular con PostgreSQL (Supabase) y actualizaciones en tiempo real mediante SignalR (WebSockets).
 
 ---
 
@@ -8,7 +8,7 @@ Backend en .NET 8 para la gestión de inscripciones de gimnasio con PostgreSQL (
 
 - **Framework**: .NET 8 Web API
 - **ORM**: Entity Framework Core con `Npgsql.EntityFrameworkCore.PostgreSQL`
-- **WebSockets**: ASP.NET Core SignalR (`/ws/gimnasio`)
+- **WebSockets**: ASP.NET Core SignalR (`/ws/parqueo`)
 - **Base de Datos**: PostgreSQL en Supabase
 - **Documentación API**: Swagger / OpenAPI en `/swagger`
 - **Contenedor**: `Dockerfile` multi-stage optimizado para Render
@@ -19,14 +19,14 @@ Backend en .NET 8 para la gestión de inscripciones de gimnasio con PostgreSQL (
 
 ```text
 ├── Controllers/
-│   └── MiembrosController.cs       # Endpoints REST (inscribir, cancelar, listar)
+│   └── VehiculosController.cs      # Endpoints REST (entrada, salida, listar, historial)
 ├── Hubs/
-│   └── GimnasioHub.cs              # Canal de transmisión SignalR
+│   └── ParqueoHub.cs               # Canal de transmisión SignalR
 ├── Models/
-│   ├── Miembro.cs                  # Entidad tabla "Miembros"
-│   ├── VistaMiembrosActivos.cs     # Entidad para la vista "VistaMiembrosActivos"
-│   ├── HistorialInscripcion.cs     # Entidad tabla "HistorialInscripciones"
-│   └── GimnasioContext.cs          # DbContext con mapeos en PascalCase
+│   ├── RegistroParqueo.cs          # Entidad tabla "RegistrosParqueo"
+│   ├── VistaVehiculosActivos.cs    # Entidad keyless para la vista "VistaVehiculosActivos"
+│   ├── HistorialOcupacion.cs       # Entidad tabla "HistorialOcupacion"
+│   └── ParqueoContext.cs           # DbContext con mapeos en PascalCase
 ├── Dockerfile                      # Despliegue en Render
 ├── Program.cs                      # Configuración de DI, CORS, SignalR y Rutas
 ├── appsettings.json                # Plantilla de configuración
@@ -60,30 +60,31 @@ Puedes configurar cualquiera de las siguientes variables de entorno en el Dashbo
 |---|---|---|
 | `GET` | `/` | Estado general del servicio |
 | `GET` | `/swagger` | Interfaz interactiva Swagger UI |
-| `GET` | `/api/miembros` | Lista histórica de todos los miembros |
-| `GET` | `/api/miembros/activos` | Obtiene los miembros de `VistaMiembrosActivos` |
-| `POST` | `/api/miembros/inscribir` | Registra miembro, agrega historial y emite SignalR |
-| `PUT` | `/api/miembros/cancelar/{id}` | Cancela membresía, agrega historial y emite SignalR |
+| `GET` | `/api/vehiculos` | Lista histórica de todos los registros de vehículos |
+| `GET` | `/api/vehiculos/activos` | Obtiene los vehículos dentro del parqueo desde `VistaVehiculosActivos` |
+| `GET` | `/api/vehiculos/historial` | Historial de ocupación del parqueo |
+| `POST` | `/api/vehiculos/entrada` | Registra entrada de vehículo, actualiza historial y emite SignalR (`ActualizarParqueo`) |
+| `PUT` | `/api/vehiculos/salida/{id}` | Registra salida de vehículo, actualiza historial y emite SignalR (`ActualizarParqueo`) |
 
 ---
 
 ## 🔌 Conexión WebSocket (SignalR)
 
-- **Ruta del Hub**: `/ws/gimnasio`
-- **Evento emitido**: `ActualizarLista`
-- **Payload recibido**: Lista de objetos de `VistaMiembrosActivos`
+- **Ruta del Hub**: `/ws/parqueo`
+- **Evento emitido**: `ActualizarParqueo`
+- **Payload recibido**: Lista de objetos de `VistaVehiculosActivos`
 
 ### Ejemplo en JavaScript / TypeScript:
 ```javascript
 import * as signalR from "@microsoft/signalr";
 
 const connection = new signalR.HubConnectionBuilder()
-    .withUrl("https://tu-servicio-en-render.onrender.com/ws/gimnasio")
+    .withUrl("https://tu-servicio-en-render.onrender.com/ws/parqueo")
     .withAutomaticReconnect()
     .build();
 
-connection.on("ActualizarLista", (miembrosActivos) => {
-    console.log("Lista actualizada en tiempo real:", miembrosActivos);
+connection.on("ActualizarParqueo", (vehiculosActivos) => {
+    console.log("Vehículos activos en tiempo real:", vehiculosActivos);
 });
 
 await connection.start();

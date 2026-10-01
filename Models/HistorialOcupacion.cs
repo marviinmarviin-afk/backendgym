@@ -3,19 +3,19 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace GimnasioApi.Models;
 
-[Table("HistorialInscripciones")]
-public class HistorialInscripcion
+[Table("HistorialOcupacion")]
+public class HistorialOcupacion
 {
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     [Column("Id")]
     public int Id { get; set; }
 
-    [Column("FechaRegistro", TypeName = "timestamp with time zone")]
+    [Column("FechaRegistro")]
     public DateTime FechaRegistro { get; set; } = DateTime.UtcNow;
 
-    [Column("CantidadTotalInscritos")]
-    public int CantidadTotalInscritos { get; set; }
+    [Column("CantidadVehiculos")]
+    public int CantidadVehiculos { get; set; }
 
     [Required]
     [Column("Accion")]
